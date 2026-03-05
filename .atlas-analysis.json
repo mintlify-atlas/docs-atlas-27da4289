@@ -1,0 +1,62 @@
+{
+  "projectType": "api-service",
+  "projectName": "Cat Data API",
+  "projectDescription": "REST API for managing cat-related images with Auth0 authentication and PostgreSQL storage",
+  "theme": "mint",
+  "primaryColor": "#FF8C42",
+  "lightColor": "#FFA05C",
+  "darkColor": "#E67A32",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/database-setup",
+              "guides/environment-configuration",
+              "guides/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/overview",
+              "api/upload-image",
+              "api/get-image",
+              "api/get-all-images",
+              "api/delete-image"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Auth0 JWT authentication",
+    "Image upload and management",
+    "PostgreSQL database with Knex migrations",
+    "CORS-enabled REST API",
+    "File validation and storage"
+  ],
+  "publicApiSurface": [
+    "POST /api/upload",
+    "GET /api/image/:id",
+    "GET /api/images",
+    "DELETE /api/image/:id"
+  ]
+}
