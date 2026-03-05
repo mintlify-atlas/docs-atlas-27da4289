@@ -1,0 +1,298 @@
+---
+title: 'Authentication'
+description: 'Secure your API with Auth0 JWT authentication'
+---
+
+## Overview
+
+The Cat Data API uses Auth0 for authentication via JSON Web Tokens (JWT). All API endpoints require a valid JWT token in the Authorization header.
+
+The authentication is implemented using the `express-jwt` middleware with `jwks-rsa` for public key verification from Auth0's JWKS endpoint.
+
+## Setting Up Auth0
+
+<Steps>
+  <Step title="Create an Auth0 Account">
+    Sign up for a free account at [auth0.com](https://auth0.com) if you don't already have one.
+  </Step>
+
+  <Step title="Create an API in Auth0">
+    1. Go to the Auth0 Dashboard
+    2. Navigate to **Applications** → **APIs**
+    3. Click **Create API**
+    4. Enter a name (e.g., "Cat Data API")
+    5. Set an identifier (e.g., `https://api.catdata.com`)
+    6. Select **RS256** as the signing algorithm
+    7. Click **Create**
+
+    <Note>
+    The API identifier will be your `AUTH0_AUDIENCE` value. It doesn't need to be a real URL.
+    </Note>
+  </Step>
+
+  <Step title="Get your Auth0 credentials">
+    After creating the API, note down:
+    - Your **Domain** (e.g., `dev-abc123.us.auth0.com`)
+    - Your **API Identifier** (the audience)
+
+    Add these to your `.env` file:
+
+    ```bash .env
+    AUTH0_DOMAIN=https://dev-abc123.us.auth0.com/
+    AUTH0_AUDIENCE=https://api.catdata.com
+    ```
+
+    <Warning>
+    The `AUTH0_DOMAIN` must include `https://` and end with a trailing slash (`/`).
+    </Warning>
+  </Step>
+
+  <Step title="Create an Application">
+    To test your API, create a test application:
+    1. Go to **Applications** → **Applications**
+    2. Click **Create Application**
+    3. Choose **Machine to Machine Applications**
+    4. Select your Cat Data API
+    5. Authorize the application
+  </Step>
+</Steps>
+
+## Authentication Middleware
+
+The API uses the following authentication middleware defined in `src/middlewares/checkJwt.ts`:
+
+```typescript src/middlewares/checkJwt.ts
+import { expressjwt } from 'express-jwt';
+import jwksRsa from 'jwks-rsa';
+import { RequestHandler } from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const domain = process.env.AUTH0_DOMAIN; 
+const audience = process.env.AUTH0_AUDIENCE; 
+
+export const checkJwt: RequestHandler = expressjwt({
+    secret: jwksRsa.expressJwtSecret({
+        cache: true,
+        rateLimit: true,
+        jwksRequestsPerMinute: 5,
+        jwksUri: `${domain}.well-known/jwks.json`,
+    }),
+    audience: audience,
+    issuer: `${domain}`,
+    algorithms: ['RS256'],
+});
+```
+
+### How It Works
+
+1. **JWKS Verification**: The middleware fetches Auth0's public keys from the JWKS endpoint
+2. **Signature Validation**: Incoming JWT tokens are validated using RS256 algorithm
+3. **Audience Check**: Ensures the token was issued for your specific API
+4. **Issuer Check**: Verifies the token comes from your Auth0 domain
+5. **Caching**: Public keys are cached to reduce latency
+6. **Rate Limiting**: Limits JWKS requests to 5 per minute
+
+## Protected Endpoints
+
+All API endpoints are protected with the `checkJwt` middleware:
+
+```typescript src/index.ts
+// Upload endpoint - requires authentication
+app.post('/api/upload', checkJwt, upload.single('file'), async (req, res) => {
+  // Handler code
+});
+
+// Get all images - requires authentication
+app.get('/api/images', checkJwt, async (req, res) => {
+  // Handler code
+});
+
+// Get single image - requires authentication
+app.get('/api/image/:id', checkJwt, async (req, res) => {
+  // Handler code
+});
+
+// Delete image - requires authentication
+app.delete('/api/image/:id', checkJwt, async (req, res) => {
+  // Handler code
+});
+```
+
+<Note>
+The root endpoint `/` is not protected and can be accessed without authentication.
+</Note>
+
+## Obtaining an Access Token
+
+### Using Auth0 Machine-to-Machine
+
+To get a token for testing, use your Auth0 application credentials:
+
+```bash
+curl --request POST \
+  --url https://YOUR_DOMAIN.auth0.com/oauth/token \
+  --header 'content-type: application/json' \
+  --data '{
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "audience": "YOUR_API_IDENTIFIER",
+    "grant_type": "client_credentials"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ik...",
+  "token_type": "Bearer",
+  "expires_in": 86400
+}
+```
+
+### JWT Token Structure
+
+A valid JWT token contains three parts separated by dots:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2Rldi1hYmMxMjMudXMuYXV0aDAuY29tLyIsInN1YiI6IjEyMzQ1Njc4OTAiLCJhdWQiOiJodHRwczovL2FwaS5jYXRkYXRhLmNvbSIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+Decoded payload example:
+
+```json
+{
+  "iss": "https://dev-abc123.us.auth0.com/",
+  "sub": "abcdefg123456789",
+  "aud": "https://api.catdata.com",
+  "iat": 1516239022,
+  "exp": 1516325422,
+  "azp": "YOUR_CLIENT_ID",
+  "gty": "client-credentials"
+}
+```
+
+## Making Authenticated Requests
+
+Include the JWT token in the `Authorization` header with the `Bearer` scheme:
+
+```bash
+curl -X POST http://localhost:3000/api/upload \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -F "file=@cat.jpg"
+```
+
+### JavaScript Example
+
+```javascript
+const token = 'YOUR_JWT_TOKEN';
+
+const response = await fetch('http://localhost:3000/api/images', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const images = await response.json();
+```
+
+### Python Example
+
+```python
+import requests
+
+token = 'YOUR_JWT_TOKEN'
+headers = {'Authorization': f'Bearer {token}'}
+
+response = requests.get('http://localhost:3000/api/images', headers=headers)
+images = response.json()
+```
+
+## Error Responses
+
+### 401 Unauthorized
+
+Missing or invalid token:
+
+```json
+{
+  "code": "credentials_required",
+  "message": "No authorization token was found"
+}
+```
+
+### 401 Invalid Token
+
+```json
+{
+  "code": "invalid_token",
+  "message": "jwt malformed"
+}
+```
+
+### 403 Forbidden
+
+Token doesn't have required audience:
+
+```json
+{
+  "code": "invalid_token",
+  "message": "jwt audience invalid. expected: https://api.catdata.com"
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: jwksUri is required">
+    Ensure your `AUTH0_DOMAIN` environment variable ends with a trailing slash (`/`).
+
+    ```bash
+    # Correct
+    AUTH0_DOMAIN=https://dev-abc123.us.auth0.com/
+
+    # Incorrect
+    AUTH0_DOMAIN=https://dev-abc123.us.auth0.com
+    ```
+  </Accordion>
+
+  <Accordion title="Error: jwt audience invalid">
+    Verify that:
+    1. Your `AUTH0_AUDIENCE` matches the API identifier in Auth0
+    2. The token was requested with the correct audience parameter
+    3. No typos exist in the audience string
+  </Accordion>
+
+  <Accordion title="Error: jwt issuer invalid">
+    Check that your `AUTH0_DOMAIN` exactly matches your Auth0 tenant domain, including the trailing slash.
+  </Accordion>
+
+  <Accordion title="Token expired">
+    Auth0 tokens have a limited lifetime (default 24 hours). Request a new token using the token endpoint.
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+Use [jwt.io](https://jwt.io) to decode and inspect your JWT tokens during development. Never share your tokens publicly!
+</Tip>
+
+## Security Best Practices
+
+1. **Never commit tokens**: Keep tokens out of version control
+2. **Use environment variables**: Store credentials in `.env` files
+3. **Rotate secrets regularly**: Update Auth0 application secrets periodically
+4. **Use HTTPS in production**: Always use encrypted connections
+5. **Implement token refresh**: Handle expired tokens gracefully in your client
+6. **Validate on every request**: The middleware validates tokens on each request automatically
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Make your first API request
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore all available endpoints
+  </Card>
+</CardGroup>

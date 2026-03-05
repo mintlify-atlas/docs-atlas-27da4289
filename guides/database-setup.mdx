@@ -1,0 +1,293 @@
+---
+title: 'Database Setup'
+description: 'Configure and set up PostgreSQL database for the Cat Data API'
+---
+
+## Overview
+
+The Cat Data API uses PostgreSQL as its database with Knex.js as the query builder and migration tool. This guide covers the complete database setup process.
+
+## Prerequisites
+
+- PostgreSQL 8.x or higher installed
+- Node.js environment set up
+- Required npm packages installed (see package.json)
+
+## PostgreSQL Installation
+
+<Steps>
+  <Step title="Install PostgreSQL">
+    Install PostgreSQL for your operating system:
+    
+    <CodeGroup>
+    ```bash macOS (Homebrew)
+    brew install postgresql@14
+    brew services start postgresql@14
+    ```
+    
+    ```bash Ubuntu/Debian
+    sudo apt update
+    sudo apt install postgresql postgresql-contrib
+    sudo systemctl start postgresql
+    ```
+    
+    ```bash Windows
+    # Download installer from postgresql.org
+    # Or use Chocolatey:
+    choco install postgresql
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Create Database">
+    Create a new database for the Cat Data API:
+    
+    ```bash
+    # Connect to PostgreSQL
+    psql -U postgres
+    
+    # Create database
+    CREATE DATABASE cat_data;
+    
+    # Create user (optional)
+    CREATE USER cat_user WITH PASSWORD 'your_password';
+    GRANT ALL PRIVILEGES ON DATABASE cat_data TO cat_user;
+    ```
+  </Step>
+  
+  <Step title="Configure Environment Variables">
+    Set up your database connection variables in `.env`:
+    
+    ```bash .env
+    PGHOST=localhost
+    PGPORT=5432
+    PGUSER=postgres
+    PGPASSWORD=your_password
+    PGDATABASE=cat_data
+    ```
+  </Step>
+  
+  <Step title="Run Migrations">
+    Execute the database migrations to create all tables:
+    
+    ```bash
+    npx knex migrate:latest
+    ```
+    
+    This will create all required tables in the correct order.
+  </Step>
+</Steps>
+
+## Knex Configuration
+
+The API uses Knex.js for database operations. The configuration is defined in `knexfile.js`:
+
+```javascript knexfile.js
+require('dotenv').config();
+
+module.exports = {
+  development: {
+    client: 'pg',
+    connection: {
+      host: process.env.PGHOST,
+      port: Number(process.env.PGPORT),
+      user: process.env.PGUSER,
+      password: process.env.PGPASSWORD,
+      database: process.env.PGDATABASE,
+    },
+    migrations: {
+      directory: './migrations',
+    },
+    seeds: {
+      directory: './seeds',
+    },
+  },
+};
+```
+
+## Database Schema
+
+The Cat Data API uses four main tables with relationships:
+
+### Images Table
+
+Stores uploaded cat image metadata:
+
+```javascript
+knex.schema.createTable('images', (table) => {
+  table.increments('id').primary();
+  table.string('name').notNullable().unique();
+  table.timestamps(true, true); // created_at, updated_at
+});
+```
+
+**Columns:**
+- `id` - Auto-incrementing primary key
+- `name` - Unique filename (UUID-based)
+- `created_at` - Timestamp when image was uploaded
+- `updated_at` - Timestamp when record was last updated
+
+### Tags Table
+
+Stores tag names for categorizing items:
+
+```javascript
+knex.schema.createTable('tags', (table) => {
+  table.increments('id').primary();
+  table.string('name').notNullable().unique();
+});
+```
+
+**Columns:**
+- `id` - Auto-incrementing primary key
+- `name` - Unique tag name
+
+### Items Table
+
+Stores cat data items with descriptions and image references:
+
+```javascript
+knex.schema.createTable('items', (table) => {
+  table.increments('id').primary();
+  table.string('name').notNullable().unique();
+  table.text('description');
+  table.integer('image_id').unsigned().references('id').inTable('images').onDelete('CASCADE');
+  table.timestamps(true, true);
+});
+```
+
+**Columns:**
+- `id` - Auto-incrementing primary key
+- `name` - Unique item name
+- `description` - Text description of the item
+- `image_id` - Foreign key to images table (cascades on delete)
+- `created_at` - Timestamp when item was created
+- `updated_at` - Timestamp when item was last updated
+
+### Items to Tags Junction Table
+
+Many-to-many relationship between items and tags:
+
+```javascript
+knex.schema.createTable('items_to_tags', (table) => {
+  table.increments('id').primary();
+  table.integer('item_id').unsigned().references('id').inTable('items').onDelete('CASCADE');
+  table.integer('tag_id').unsigned().references('id').inTable('tags').onDelete('CASCADE');
+});
+```
+
+**Columns:**
+- `id` - Auto-incrementing primary key
+- `item_id` - Foreign key to items table (cascades on delete)
+- `tag_id` - Foreign key to tags table (cascades on delete)
+
+## Migration Commands
+
+<Note>
+All migration commands should be run from the project root directory.
+</Note>
+
+### Run Latest Migrations
+
+```bash
+npx knex migrate:latest
+```
+
+Applies all pending migrations in chronological order.
+
+### Rollback Last Migration
+
+```bash
+npx knex migrate:rollback
+```
+
+Rolls back the last batch of migrations.
+
+### Check Migration Status
+
+```bash
+npx knex migrate:status
+```
+
+Shows which migrations have been applied.
+
+### Create New Migration
+
+```bash
+npx knex migrate:make migration_name
+```
+
+Creates a new migration file in the migrations directory.
+
+## Connection Details Structure
+
+The database connection is initialized in `src/db.ts`:
+
+```typescript src/db.ts
+import knex from 'knex';
+
+const config = require('../knexfile');
+const environment = process.env.NODE_ENV || 'development';
+const db = knex(config[environment]);
+
+export default db;
+```
+
+This configuration:
+- Loads environment variables from `.env`
+- Uses the development configuration by default
+- Can be extended to support production environments
+- Exports a configured Knex instance for use throughout the application
+
+## Verifying the Setup
+
+After running migrations, verify your database setup:
+
+```bash
+# Connect to your database
+psql -U postgres -d cat_data
+
+# List all tables
+\dt
+
+# Should show:
+# - images
+# - tags
+# - items
+# - items_to_tags
+# - knex_migrations
+# - knex_migrations_lock
+```
+
+<Warning>
+Ensure all foreign key relationships are properly created. The migration order matters:
+1. images
+2. tags
+3. items (depends on images)
+4. items_to_tags (depends on items and tags)
+</Warning>
+
+## Troubleshooting
+
+### Connection Failed
+
+If you encounter connection errors:
+- Verify PostgreSQL is running: `pg_isready`
+- Check your `.env` file has correct credentials
+- Ensure the database exists: `psql -l`
+
+### Migration Errors
+
+If migrations fail:
+- Check the `knex_migrations_lock` table isn't stuck
+- Verify all environment variables are loaded
+- Ensure you have proper permissions on the database
+
+### Permission Denied
+
+Grant proper permissions to your database user:
+
+```sql
+GRANT ALL PRIVILEGES ON DATABASE cat_data TO your_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_user;
+```

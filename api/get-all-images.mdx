@@ -1,0 +1,101 @@
+---
+title: Get All Images
+description: Retrieve metadata for all cat images
+---
+
+## GET /api/images
+
+Retrieves metadata for all cat images stored in the database.
+
+<Note>
+Implementation: src/index.ts:76-80
+</Note>
+
+### Authentication
+
+Requires JWT authentication via the `checkJwt` middleware.
+
+### Response
+
+Returns a JSON array of image objects. Each object contains:
+
+<ResponseField name="id" type="number">
+  The unique database ID of the image.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The filename stored on the server (includes UUID prefix).
+</ResponseField>
+
+### Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| `200` | Images retrieved successfully |
+| `401` | Missing or invalid JWT token |
+| `500` | Internal server error |
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/api/images \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Example Response
+
+```json
+[
+  {
+    "id": 1,
+    "name": "a1b2c3d4-e5f6-4789-a012-3456789abcde-fluffy-cat.jpg"
+  },
+  {
+    "id": 2,
+    "name": "f7e8d9c0-b1a2-3456-7890-1234567890ab-orange-tabby.png"
+  },
+  {
+    "id": 3,
+    "name": "9876543a-21b0-c9d8-e7f6-543210987654-siamese.jpg"
+  }
+]
+```
+
+<Note>
+If no images exist in the database, an empty array `[]` will be returned.
+</Note>
+
+## Implementation Details
+
+### Endpoint Code
+
+The endpoint implementation is straightforward (src/index.ts:76-80):
+
+```typescript
+app.get('/api/images', checkJwt, async (req, res) => {
+  const images = await getAllImages();
+  res.json(images);
+});
+```
+
+### Database Query
+
+The `getAllImages` function queries the database for all image records (db-functions.ts:28-30):
+
+```typescript
+export async function getAllImages(): Promise<{ id: number; name: string }[]> {
+  return db('images').select('id', 'name');
+}
+```
+
+### Usage Pattern
+
+This endpoint is typically used to:
+
+1. Display a gallery of all available cat images
+2. Get a list of image IDs for subsequent `GET /api/image/:id` requests
+3. Monitor which images are stored in the system
+
+<Warning>
+This endpoint returns only metadata (ID and filename), not the actual image files. Use `GET /api/image/:id` to retrieve the actual image files.
+</Warning>

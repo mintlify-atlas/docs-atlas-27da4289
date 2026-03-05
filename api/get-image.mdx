@@ -1,0 +1,80 @@
+---
+title: Get Image
+description: Retrieve a specific cat image by ID
+---
+
+## GET /api/image/:id
+
+Retrieves a specific cat image file from the server by its database ID.
+
+<Note>
+Implementation: src/index.ts:70-74
+</Note>
+
+### Authentication
+
+Requires JWT authentication via the `checkJwt` middleware.
+
+### Path Parameters
+
+<ParamField path="id" type="number" required>
+  The database ID of the image to retrieve.
+</ParamField>
+
+### Response
+
+Returns the raw image file with appropriate content-type headers. The response is sent using Express's `sendFile` method, which automatically sets the correct MIME type based on the file extension.
+
+### Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| `200` | Image file retrieved successfully |
+| `401` | Missing or invalid JWT token |
+| `404` | Image not found |
+| `500` | Internal server error (e.g., file missing from disk) |
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/api/image/42 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  --output cat-image.jpg
+```
+
+### Example Response
+
+The response is the raw image file binary data. The `Content-Type` header will be set automatically based on the file type (e.g., `image/jpeg` or `image/png`).
+
+## Implementation Details
+
+### File Retrieval Process
+
+The endpoint follows this process (src/index.ts:70-74):
+
+1. Extracts the `id` from the URL path parameter
+2. Queries the database using `getImage(id)` to get the filename (db-functions.ts:13-22)
+3. Sends the file from the images directory using `res.sendFile()`
+
+```typescript
+app.get('/api/image/:id', checkJwt, async (req, res) => {
+  const id = Number(req.params.id);
+  const fileInfo = await getImage(id);
+  res.sendFile(path.join(imagesDir, fileInfo.name));
+});
+```
+
+### Database Query
+
+The `getImage` function returns an object with the image metadata:
+
+```typescript
+{
+  id: number;
+  name: string;
+}
+```
+
+<Warning>
+If the image ID doesn't exist in the database or the file is missing from disk, the request will fail.
+</Warning>

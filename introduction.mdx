@@ -1,0 +1,66 @@
+---
+title: Introduction
+description: Welcome to the Cat Data API documentation
+---
+
+# Welcome to Cat Data API
+
+Cat Data API is a REST API for managing cat-related images with secure authentication and PostgreSQL storage. Built with Express.js and TypeScript, it provides a robust backend for applications that need to store and retrieve cat images.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Auth0 Authentication" icon="lock" href="/authentication">
+    Secure JWT-based authentication with Auth0 integration
+  </Card>
+  <Card title="Image Management" icon="image" href="/api/overview">
+    Upload, retrieve, and delete cat images with ease
+  </Card>
+  <Card title="PostgreSQL Database" icon="database" href="/guides/database-setup">
+    Reliable data storage with Knex.js migrations
+  </Card>
+  <Card title="CORS Enabled" icon="globe" href="/guides/environment-configuration">
+    Cross-origin resource sharing for flexible integration
+  </Card>
+</CardGroup>
+
+## Quick Overview
+
+The Cat Data API provides four main endpoints:
+
+- **POST /api/upload** - Upload a new cat image (JPG or PNG)
+- **GET /api/images** - Retrieve all stored images
+- **GET /api/image/:id** - Get a specific image by ID
+- **DELETE /api/image/:id** - Delete an image
+
+All endpoints require Auth0 JWT authentication for secure access.
+
+## Getting Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in under 5 minutes
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Set up Auth0 for secure API access
+  </Card>
+  <Card title="Database Setup" icon="database" href="/guides/database-setup">
+    Configure PostgreSQL and run migrations
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+- **Runtime**: Node.js with TypeScript
+- **Framework**: Express.js
+- **Database**: PostgreSQL with Knex.js
+- **Authentication**: Auth0 with JWT
+- **File Upload**: Multer
+- **CORS**: Enabled for cross-origin requests
+
+## Support
+
+Need help? Check out the [GitHub repository](https://github.com/toryshchyn/cat-data) or explore the guides in this documentation.

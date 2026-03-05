@@ -1,80 +1,192 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get up and running with the Cat Data API in 5 minutes'
 ---
 
-## Get started in three steps
+## Installation
 
-Get your documentation site running locally and make your first customization.
+<Steps>
+  <Step title="Clone and install dependencies">
+    First, clone the repository and install the required packages:
 
-### Step 1: Set up your local environment
+    <CodeGroup>
+    ```bash npm
+    npm install
+    ```
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash yarn
+    yarn install
+    ```
 
-### Step 2: Deploy your changes
+    ```bash pnpm
+    pnpm install
+    ```
+    </CodeGroup>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    The API uses the following key dependencies:
+    - `express` - Web framework
+    - `express-jwt` & `jwks-rsa` - Auth0 authentication
+    - `multer` - File upload handling
+    - `knex` & `pg` - PostgreSQL database integration
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Set up your environment variables">
+    Create a `.env` file in the root directory with the following variables:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash .env
+    # Server Configuration
+    PORT=3000
 
-### Step 3: Go live
+    # PostgreSQL Database
+    PGHOST=your_database_host
+    PGPORT=5432
+    PGUSER=your_database_user
+    PGPASSWORD=your_database_password
+    PGDATABASE=cat_data
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    # Auth0 Configuration
+    AUTH0_DOMAIN=https://your-domain.auth0.com/
+    AUTH0_AUDIENCE=your_api_identifier
+    ```
 
-## Next steps
+    <Warning>
+    Make sure `AUTH0_DOMAIN` ends with a trailing slash (`/`) as the middleware appends `.well-known/jwks.json` directly to it.
+    </Warning>
+  </Step>
 
-Now that you have your docs running, explore these key features:
+  <Step title="Set up the database">
+    Run the Knex migrations to create the necessary database tables:
 
-<CardGroup cols={2}>
+    ```bash
+    npx knex migrate:latest
+    ```
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+    This creates the `images` table required for storing cat image metadata.
+  </Step>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+  <Step title="Start the development server">
+    Run the development server with hot-reload enabled:
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+    ```bash
+    npm run dev
+    ```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+    The API will start on `http://localhost:3000` (or your configured PORT).
+  </Step>
+</Steps>
 
-</CardGroup>
+## Making Your First Request
+
+### Upload a Cat Image
+
+Upload a cat image to the API using multipart/form-data:
+
+```bash
+curl -X POST http://localhost:3000/api/upload \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "file=@/path/to/cat-image.jpg"
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+Only JPG and PNG image formats are accepted. Other file types will be rejected with an error.
 </Note>
+
+**Response:**
+
+```json
+{
+  "id": 1,
+  "filename": "a1b2c3d4-5678-90ab-cdef-1234567890ab-cat-image.jpg"
+}
+```
+
+The API automatically generates a UUID-prefixed filename to prevent naming conflicts.
+
+### Retrieve All Images
+
+Get a list of all uploaded cat images:
+
+```bash
+curl http://localhost:3000/api/images \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "name": "a1b2c3d4-5678-90ab-cdef-1234567890ab-cat-image.jpg"
+  },
+  {
+    "id": 2,
+    "name": "b2c3d4e5-6789-01bc-def0-234567890abc-another-cat.png"
+  }
+]
+```
+
+### Get a Specific Image
+
+Retrieve a specific cat image by its ID:
+
+```bash
+curl http://localhost:3000/api/image/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  --output cat.jpg
+```
+
+This endpoint returns the actual image file for display or download.
+
+### Delete an Image
+
+Remove an image from both the filesystem and database:
+
+```bash
+curl -X DELETE http://localhost:3000/api/image/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:** `204 No Content`
+
+<Warning>
+Deletion is permanent and removes both the file from the `images/` directory and the database record.
+</Warning>
+
+## Complete Example Workflow
+
+Here's a complete example of uploading and retrieving a cat image:
+
+```bash
+# 1. Upload a cat image
+RESPONSE=$(curl -s -X POST http://localhost:3000/api/upload \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "file=@cat.jpg")
+
+# 2. Extract the image ID from the response
+IMAGE_ID=$(echo $RESPONSE | jq -r '.id')
+
+# 3. Retrieve the image
+curl http://localhost:3000/api/image/$IMAGE_ID \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  --output retrieved-cat.jpg
+
+# 4. List all images to verify
+curl http://localhost:3000/api/images \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+<Tip>
+All endpoints require authentication. See the [Authentication](/authentication) page to learn how to obtain a JWT token from Auth0.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Learn how to configure Auth0 and obtain JWT tokens
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints and parameters
+  </Card>
+</CardGroup>

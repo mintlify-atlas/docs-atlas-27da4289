@@ -1,0 +1,311 @@
+---
+title: 'Environment Configuration'
+description: 'Configure environment variables for the Cat Data API'
+---
+
+## Overview
+
+The Cat Data API uses environment variables for configuration management. This guide covers all required and optional environment variables used throughout the application.
+
+## Environment File Setup
+
+Create a `.env` file in the root of your project directory. This file should never be committed to version control.
+
+<Warning>
+Add `.env` to your `.gitignore` file to prevent accidentally committing sensitive credentials.
+</Warning>
+
+## Required Environment Variables
+
+### Server Configuration
+
+#### PORT
+
+The port number on which the Express server will listen.
+
+```bash .env
+PORT=3000
+```
+
+**Usage in code** (src/index.ts:15):
+```typescript
+const PORT = process.env.PORT || 3000;
+```
+
+**Default:** `3000` if not specified
+
+### Database Configuration
+
+PostgreSQL connection parameters used by Knex.js:
+
+#### PGHOST
+
+PostgreSQL server hostname or IP address.
+
+```bash .env
+PGHOST=localhost
+```
+
+#### PGPORT
+
+PostgreSQL server port number.
+
+```bash .env
+PGPORT=5432
+```
+
+#### PGUSER
+
+PostgreSQL username for authentication.
+
+```bash .env
+PGUSER=postgres
+```
+
+#### PGPASSWORD
+
+PostgreSQL password for authentication.
+
+```bash .env
+PGPASSWORD=your_secure_password
+```
+
+#### PGDATABASE
+
+Name of the PostgreSQL database to connect to.
+
+```bash .env
+PGDATABASE=cat_data
+```
+
+**Usage in knexfile.js:**
+```javascript
+module.exports = {
+  development: {
+    client: 'pg',
+    connection: {
+      host: process.env.PGHOST,
+      port: Number(process.env.PGPORT),
+      user: process.env.PGUSER,
+      password: process.env.PGPASSWORD,
+      database: process.env.PGDATABASE,
+    },
+    migrations: {
+      directory: './migrations',
+    },
+    seeds: {
+      directory: './seeds',
+    },
+  },
+};
+```
+
+### Authentication Configuration (Auth0)
+
+The API uses Auth0 for JWT-based authentication on protected endpoints.
+
+#### AUTH0_DOMAIN
+
+Your Auth0 tenant domain, including the protocol.
+
+```bash .env
+AUTH0_DOMAIN=https://your-tenant.auth0.com/
+```
+
+<Note>
+Make sure to include the trailing slash (`/`) in your AUTH0_DOMAIN value.
+</Note>
+
+**Usage in src/middlewares/checkJwt.ts:7-18:**
+```typescript
+const domain = process.env.AUTH0_DOMAIN;
+
+export const checkJwt: RequestHandler = expressjwt({
+    secret: jwksRsa.expressJwtSecret({
+        cache: true,
+        rateLimit: true,
+        jwksRequestsPerMinute: 5,
+        jwksUri: `${domain}.well-known/jwks.json`,
+    }),
+    audience: audience,
+    issuer: `${domain}`,
+    algorithms: ['RS256'],
+});
+```
+
+#### AUTH0_AUDIENCE
+
+The Auth0 API identifier (audience) for your API.
+
+```bash .env
+AUTH0_AUDIENCE=https://your-api-identifier
+```
+
+**Usage in src/middlewares/checkJwt.ts:8:**
+```typescript
+const audience = process.env.AUTH0_AUDIENCE;
+```
+
+## CORS Configuration
+
+CORS (Cross-Origin Resource Sharing) settings are configured in the application code.
+
+**Current configuration** (src/index.ts:18-21):
+```typescript
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
+```
+
+**Configuration details:**
+- `origin` - Allowed origin for cross-origin requests (currently set to `http://localhost:5173` for local development)
+- `credentials` - Allows cookies and authentication headers
+
+<Warning>
+For production deployments, update the CORS origin to match your frontend domain. You may want to make this configurable via an environment variable:
+
+```typescript
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}));
+```
+</Warning>
+
+## Complete .env Template
+
+Here's a complete `.env` file template with all required variables:
+
+```bash .env
+# Server Configuration
+PORT=3000
+
+# Database Configuration
+PGHOST=localhost
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=your_secure_password
+PGDATABASE=cat_data
+
+# Auth0 Configuration
+AUTH0_DOMAIN=https://your-tenant.auth0.com/
+AUTH0_AUDIENCE=https://your-api-identifier
+
+# Optional: Node Environment
+NODE_ENV=development
+```
+
+## Environment-Specific Configurations
+
+### Development Environment
+
+```bash .env.development
+PORT=3000
+PGHOST=localhost
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=dev_password
+PGDATABASE=cat_data_dev
+AUTH0_DOMAIN=https://dev-tenant.auth0.com/
+AUTH0_AUDIENCE=https://dev-api-identifier
+NODE_ENV=development
+```
+
+### Production Environment
+
+```bash .env.production
+PORT=8080
+PGHOST=your-production-db-host.com
+PGPORT=5432
+PGUSER=cat_api_user
+PGPASSWORD=strong_production_password
+PGDATABASE=cat_data_prod
+AUTH0_DOMAIN=https://your-tenant.auth0.com/
+AUTH0_AUDIENCE=https://your-api-identifier
+NODE_ENV=production
+```
+
+## Loading Environment Variables
+
+The application uses the `dotenv` package to load environment variables:
+
+```typescript
+import dotenv from 'dotenv';
+dotenv.config();
+```
+
+This should be called as early as possible in your application, before accessing any `process.env` variables.
+
+**Files that load dotenv:**
+- `knexfile.js:1` - For database migrations and configuration
+- `src/index.ts:12` - Main application entry point
+- `src/middlewares/checkJwt.ts:5` - JWT authentication middleware
+
+## Validation and Error Handling
+
+<Note>
+The application currently does not validate environment variables at startup. Consider adding validation to ensure all required variables are present before starting the server.
+</Note>
+
+### Example Validation
+
+```typescript
+const requiredEnvVars = [
+  'PGHOST',
+  'PGPORT',
+  'PGUSER',
+  'PGPASSWORD',
+  'PGDATABASE',
+  'AUTH0_DOMAIN',
+  'AUTH0_AUDIENCE',
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
+```
+
+## Security Best Practices
+
+<Warning>
+**Important Security Guidelines:**
+
+1. Never commit `.env` files to version control
+2. Use strong, unique passwords for database and Auth0 credentials
+3. Rotate credentials regularly
+4. Use different credentials for development and production
+5. Restrict database user permissions to only what's needed
+6. Keep Auth0 secrets secure and never expose them in client-side code
+</Warning>
+
+## Troubleshooting
+
+### Environment Variables Not Loading
+
+If your environment variables aren't being recognized:
+
+1. Verify `.env` file is in the project root
+2. Check that `dotenv.config()` is called before accessing variables
+3. Ensure no typos in variable names
+4. Restart your development server after changing `.env`
+
+### Auth0 Connection Issues
+
+If JWT authentication fails:
+
+1. Verify `AUTH0_DOMAIN` includes the protocol and trailing slash
+2. Check that `AUTH0_AUDIENCE` matches your Auth0 API identifier
+3. Ensure the JWKS URI is accessible: `${AUTH0_DOMAIN}.well-known/jwks.json`
+4. Verify tokens are being sent with the correct format: `Authorization: Bearer <token>`
+
+### Database Connection Failures
+
+If database connections fail:
+
+1. Verify PostgreSQL is running
+2. Check all PG* environment variables are set correctly
+3. Test connection manually: `psql -h $PGHOST -p $PGPORT -U $PGUSER -d $PGDATABASE`
+4. Ensure the database exists and user has proper permissions

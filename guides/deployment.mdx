@@ -1,0 +1,526 @@
+---
+title: 'Deployment'
+description: 'Deploy the Cat Data API to production'
+---
+
+## Overview
+
+This guide covers deploying the Cat Data API to a production environment, including build processes, environment setup, and best practices for running the API in production.
+
+## Build Process
+
+The Cat Data API is written in TypeScript and must be compiled to JavaScript before deployment.
+
+### Build Commands
+
+From `package.json`, the following scripts are available:
+
+```json package.json
+{
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  }
+}
+```
+
+### Building for Production
+
+<Steps>
+  <Step title="Install Dependencies">
+    Install all production and development dependencies:
+    
+    ```bash
+    npm install
+    ```
+  </Step>
+  
+  <Step title="Compile TypeScript">
+    Build the TypeScript code to JavaScript:
+    
+    ```bash
+    npm run build
+    ```
+    
+    This compiles all TypeScript files from `src/` to JavaScript in the `dist/` directory using the configuration from `tsconfig.json`.
+  </Step>
+  
+  <Step title="Start Production Server">
+    Run the compiled application:
+    
+    ```bash
+    npm start
+    ```
+    
+    This executes `node dist/index.js`, which starts the Express server.
+  </Step>
+</Steps>
+
+<Note>
+The `dist/` directory contains all compiled JavaScript files. Ensure this directory is included in your deployment.
+</Note>
+
+## Production Environment Setup
+
+### Environment Variables
+
+Set up production environment variables. See the [Environment Configuration](/guides/environment-configuration) guide for details.
+
+**Production .env example:**
+
+```bash .env
+# Server Configuration
+PORT=8080
+NODE_ENV=production
+
+# Database Configuration
+PGHOST=your-production-db-host.com
+PGPORT=5432
+PGUSER=cat_api_user
+PGPASSWORD=strong_production_password
+PGDATABASE=cat_data_prod
+
+# Auth0 Configuration
+AUTH0_DOMAIN=https://your-tenant.auth0.com/
+AUTH0_AUDIENCE=https://your-api-identifier
+
+# CORS (if configured via environment)
+CORS_ORIGIN=https://your-frontend-domain.com
+```
+
+<Warning>
+**Production Security Checklist:**
+
+- Use strong, unique passwords
+- Never commit `.env` files to version control
+- Rotate credentials regularly
+- Use environment-specific Auth0 tenants
+- Configure SSL/TLS for database connections
+- Restrict database user permissions
+</Warning>
+
+### CORS Configuration for Production
+
+The current CORS configuration in `src/index.ts:18-21` is set for local development:
+
+```typescript
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+}));
+```
+
+**For production, update this to:**
+
+```typescript
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'https://your-frontend-domain.com',
+  credentials: true,
+}));
+```
+
+Or allow multiple origins:
+
+```typescript
+const allowedOrigins = [
+  'https://your-frontend-domain.com',
+  'https://www.your-frontend-domain.com',
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
+```
+
+## PostgreSQL Production Setup
+
+### Database Deployment Considerations
+
+<Steps>
+  <Step title="Set Up Production Database">
+    Create a production PostgreSQL instance:
+    
+    - Use a managed service (AWS RDS, Google Cloud SQL, DigitalOcean Managed Databases)
+    - Or set up a dedicated PostgreSQL server
+    - Ensure proper backups are configured
+  </Step>
+  
+  <Step title="Configure Connection Pooling">
+    For production workloads, configure connection pooling in `knexfile.js`:
+    
+    ```javascript knexfile.js
+    module.exports = {
+      production: {
+        client: 'pg',
+        connection: {
+          host: process.env.PGHOST,
+          port: Number(process.env.PGPORT),
+          user: process.env.PGUSER,
+          password: process.env.PGPASSWORD,
+          database: process.env.PGDATABASE,
+          ssl: { rejectUnauthorized: false }, // For managed databases
+        },
+        pool: {
+          min: 2,
+          max: 10,
+        },
+        migrations: {
+          directory: './migrations',
+        },
+      },
+    };
+    ```
+  </Step>
+  
+  <Step title="Run Production Migrations">
+    Apply database migrations to your production database:
+    
+    ```bash
+    NODE_ENV=production npx knex migrate:latest
+    ```
+    
+    <Warning>
+    Always test migrations on a staging environment before applying to production.
+    </Warning>
+  </Step>
+  
+  <Step title="Set Up Monitoring">
+    Monitor database performance:
+    
+    - Query execution times
+    - Connection pool usage
+    - Slow query logs
+    - Database size and growth
+  </Step>
+</Steps>
+
+### Database Backup Strategy
+
+<Note>
+Implement regular database backups:
+
+- Automated daily backups
+- Transaction log backups for point-in-time recovery
+- Test restore procedures regularly
+- Store backups in separate geographic locations
+</Note>
+
+## Image Storage Directory Setup
+
+The API stores uploaded images in a local directory (src/index.ts:24-25):
+
+```typescript
+const imagesDir = path.join(__dirname, '../images');
+if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir);
+```
+
+### Production Storage Considerations
+
+<Warning>
+Local file storage has limitations in production:
+
+- Not scalable across multiple server instances
+- Files lost if server is replaced
+- No built-in redundancy or backups
+</Warning>
+
+### Recommended Production Storage Solutions
+
+<Accordion title="Option 1: Cloud Object Storage (Recommended)">
+  Migrate to cloud storage services:
+  
+  - **AWS S3**: Highly scalable, durable object storage
+  - **Google Cloud Storage**: Global storage with CDN integration
+  - **Azure Blob Storage**: Microsoft's cloud storage solution
+  - **DigitalOcean Spaces**: S3-compatible object storage
+  
+  **Benefits:**
+  - Unlimited scalability
+  - Built-in redundancy and backups
+  - CDN integration for fast delivery
+  - Pay per use
+  
+  **Implementation example (AWS S3):**
+  
+  ```typescript
+  import AWS from 'aws-sdk';
+  
+  const s3 = new AWS.S3({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: process.env.AWS_REGION,
+  });
+  
+  // Upload to S3 instead of local filesystem
+  const uploadToS3 = (file: Express.Multer.File) => {
+    return s3.upload({
+      Bucket: process.env.S3_BUCKET_NAME,
+      Key: file.filename,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    }).promise();
+  };
+  ```
+</Accordion>
+
+<Accordion title="Option 2: Shared Network Storage">
+  Use network-attached storage (NAS) or network file systems:
+  
+  - Mount a shared volume across multiple server instances
+  - Use NFS, SMB, or cloud provider's shared file systems
+  - Ensure the mount point is available before starting the API
+  
+  **Example setup:**
+  
+  ```bash
+  # Mount shared storage
+  sudo mount -t nfs server:/export/images /opt/cat-api/images
+  
+  # Update image directory path
+  export IMAGE_STORAGE_PATH=/opt/cat-api/images
+  ```
+</Accordion>
+
+<Accordion title="Option 3: Local Storage with Backup">
+  If using local storage, implement backup strategy:
+  
+  - Regular automated backups to cloud storage
+  - Sync images directory to backup location
+  - Document restore procedures
+  
+  **Example backup script:**
+  
+  ```bash
+  #!/bin/bash
+  # Sync images to S3 backup
+  aws s3 sync /path/to/images s3://backup-bucket/images/ \
+    --delete \
+    --storage-class STANDARD_IA
+  ```
+</Accordion>
+
+### Image Directory Permissions
+
+Ensure proper permissions on the images directory:
+
+```bash
+# Create images directory
+mkdir -p /opt/cat-api/images
+
+# Set ownership
+chown -R app-user:app-user /opt/cat-api/images
+
+# Set permissions (read/write for owner, read for group)
+chmod 750 /opt/cat-api/images
+```
+
+## Deployment Platforms
+
+### Docker Deployment
+
+Create a `Dockerfile` for containerized deployment:
+
+```dockerfile Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# Create images directory
+RUN mkdir -p /app/images
+
+# Expose port
+EXPOSE 3000
+
+# Start application
+CMD ["npm", "start"]
+```
+
+**Build and run:**
+
+```bash
+# Build image
+docker build -t cat-data-api .
+
+# Run container
+docker run -d \
+  -p 3000:3000 \
+  -v $(pwd)/images:/app/images \
+  --env-file .env \
+  --name cat-api \
+  cat-data-api
+```
+
+### Platform-Specific Guides
+
+<Accordion title="Heroku">
+  Deploy to Heroku:
+  
+  ```bash
+  # Install Heroku CLI
+  # Create new app
+  heroku create your-app-name
+  
+  # Add PostgreSQL
+  heroku addons:create heroku-postgresql:mini
+  
+  # Set environment variables
+  heroku config:set PORT=8080
+  heroku config:set AUTH0_DOMAIN=https://your-tenant.auth0.com/
+  heroku config:set AUTH0_AUDIENCE=https://your-api-identifier
+  
+  # Deploy
+  git push heroku main
+  
+  # Run migrations
+  heroku run npx knex migrate:latest
+  ```
+</Accordion>
+
+<Accordion title="AWS EC2">
+  Deploy to AWS EC2:
+  
+  1. Launch an EC2 instance (Ubuntu 22.04 LTS recommended)
+  2. Install Node.js and PostgreSQL
+  3. Clone your repository
+  4. Set up environment variables
+  5. Build and start the application
+  6. Configure nginx as reverse proxy
+  7. Set up SSL with Let's Encrypt
+  8. Use PM2 for process management
+  
+  ```bash
+  # Install PM2
+  npm install -g pm2
+  
+  # Start application with PM2
+  pm2 start dist/index.js --name cat-api
+  
+  # Set up auto-restart on reboot
+  pm2 startup
+  pm2 save
+  ```
+</Accordion>
+
+<Accordion title="DigitalOcean App Platform">
+  Deploy to DigitalOcean App Platform:
+  
+  1. Connect your GitHub repository
+  2. Configure build and run commands:
+     - Build: `npm run build`
+     - Run: `npm start`
+  3. Add PostgreSQL database
+  4. Set environment variables in the dashboard
+  5. Configure health checks on `/`
+  6. Deploy automatically on push
+</Accordion>
+
+## Production Best Practices
+
+### Process Management
+
+Use a process manager to keep the application running:
+
+```bash
+# Using PM2
+pm2 start dist/index.js --name cat-api --instances 2
+pm2 logs cat-api
+pm2 restart cat-api
+```
+
+### Logging
+
+Implement structured logging:
+
+```typescript
+import winston from 'winston';
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple(),
+  }));
+}
+```
+
+### Health Checks
+
+Add a health check endpoint:
+
+```typescript
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+```
+
+### Monitoring
+
+Set up monitoring and alerting:
+
+- Application performance monitoring (APM) tools
+- Error tracking (Sentry, Rollbar)
+- Uptime monitoring
+- Log aggregation
+- Database performance monitoring
+
+### SSL/TLS Configuration
+
+Always use HTTPS in production:
+
+- Use a reverse proxy (nginx, Apache) with SSL certificates
+- Or configure Express with HTTPS
+- Use Let's Encrypt for free SSL certificates
+- Redirect HTTP to HTTPS
+
+## Troubleshooting Production Issues
+
+### Application Won't Start
+
+1. Check environment variables are set correctly
+2. Verify database connection
+3. Check port availability
+4. Review application logs
+5. Ensure all dependencies are installed
+
+### High Memory Usage
+
+1. Check for memory leaks
+2. Optimize database queries
+3. Implement request rate limiting
+4. Monitor connection pool settings
+5. Consider horizontal scaling
+
+### Slow Performance
+
+1. Enable database query logging
+2. Add database indexes
+3. Implement caching
+4. Use a CDN for image delivery
+5. Profile application performance

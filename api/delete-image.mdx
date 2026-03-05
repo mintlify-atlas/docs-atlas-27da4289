@@ -1,0 +1,104 @@
+---
+title: Delete Image
+description: Delete a cat image by ID
+---
+
+## DELETE /api/image/:id
+
+Deletes a cat image from both the filesystem and the database.
+
+<Note>
+Implementation: src/index.ts:60-68
+</Note>
+
+### Authentication
+
+Requires JWT authentication via the `checkJwt` middleware.
+
+### Path Parameters
+
+<ParamField path="id" type="number" required>
+  The database ID of the image to delete.
+</ParamField>
+
+### What Happens
+
+The delete operation performs two actions in sequence:
+
+1. **File Deletion**: The physical image file is deleted from the server's filesystem using `fs.unlinkSync()`
+2. **Database Deletion**: The image metadata record is deleted from the database using the `deleteImage` function
+
+<Warning>
+This operation is irreversible. Once deleted, the image file and metadata cannot be recovered.
+</Warning>
+
+### Response
+
+Returns a `204 No Content` response with an empty body on successful deletion.
+
+### Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| `204` | Image deleted successfully (no content) |
+| `401` | Missing or invalid JWT token |
+| `404` | Image not found |
+| `500` | Internal server error |
+
+### Example Request
+
+```bash
+curl -X DELETE http://localhost:3000/api/image/42 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### Example Response
+
+No response body (HTTP 204 No Content).
+
+## Implementation Details
+
+### Deletion Process
+
+The endpoint follows this process (src/index.ts:60-68):
+
+```typescript
+app.delete('/api/image/:id', checkJwt, async (req, res) => {
+  const id = Number(req.params.id);
+  const fileInfo = await getImage(id);
+  // delete file
+  fs.unlinkSync(path.join(imagesDir, fileInfo.name));
+  // delete from db
+  await deleteImage(id);
+  res.status(204).end();
+});
+```
+
+**Steps:**
+1. Extract the image ID from the URL path parameter
+2. Query the database to get the filename using `getImage(id)`
+3. Delete the physical file from the images directory
+4. Delete the database record using `deleteImage(id)` (db-functions.ts:24-26)
+5. Return a 204 No Content response
+
+### Database Deletion
+
+The `deleteImage` function removes the record from the database:
+
+```typescript
+export async function deleteImage(id: number): Promise<void> {
+  await db('images').where({ id }).del();
+}
+```
+
+### Error Handling
+
+<Warning>
+If the image doesn't exist in the database, the `getImage` call will fail. If the file doesn't exist on disk but the database record exists, `fs.unlinkSync` will throw an error.
+</Warning>
+
+### Best Practices
+
+- Always verify the image exists before attempting deletion (use `GET /api/images` or `GET /api/image/:id`)
+- Handle 404 responses gracefully in your client application
+- Consider implementing soft deletes if you need to recover deleted images

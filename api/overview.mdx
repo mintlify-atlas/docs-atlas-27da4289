@@ -1,0 +1,81 @@
+---
+title: API Overview
+description: Base information for the Cat Data API
+---
+
+## Base URL
+
+The Cat Data API runs on:
+
+```
+http://localhost:3000
+```
+
+<Note>
+The default port is 3000, but can be configured via the `PORT` environment variable.
+</Note>
+
+## Authentication
+
+All API endpoints require JWT authentication. Include a valid JWT token in the `Authorization` header:
+
+```bash
+Authorization: Bearer <your-jwt-token>
+```
+
+<Warning>
+Requests without a valid JWT token will be rejected with a 401 Unauthorized response.
+</Warning>
+
+Authentication is enforced via the `checkJwt` middleware on all `/api/*` endpoints (src/index.ts:44, :60, :70, :76).
+
+## CORS Configuration
+
+The API is configured with CORS to allow requests from:
+
+- **Origin**: `http://localhost:5173`
+- **Credentials**: Enabled
+
+<Note>
+CORS configuration can be found in src/index.ts:18-21
+</Note>
+
+## Common Response Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| `200` | Successful request |
+| `201` | Resource created successfully |
+| `204` | Success with no content (delete operations) |
+| `400` | Bad request - invalid or missing parameters |
+| `401` | Unauthorized - invalid or missing JWT token |
+| `404` | Resource not found |
+| `500` | Internal server error |
+
+## Rate Limiting
+
+There is currently no rate limiting configured on the API endpoints.
+
+## Request Format
+
+- **Content-Type**: `application/json` for JSON requests
+- **Content-Type**: `multipart/form-data` for file uploads
+
+## Response Format
+
+All JSON responses follow standard REST conventions:
+
+```json
+{
+  "id": 1,
+  "filename": "uuid-catimage.jpg"
+}
+```
+
+Errors return an error object:
+
+```json
+{
+  "error": "Error message description"
+}
+```
